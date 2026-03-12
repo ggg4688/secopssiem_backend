@@ -23,6 +23,7 @@ app = FastAPI(
 origins = [
     "http://localhost:5173",
     "https://secopssiem.space"
+    "https://secopssiem.vercel.app"
 ]
 
 
