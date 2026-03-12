@@ -1,13 +1,10 @@
-from app.database import engine
-from app.models import *
-
-Base.metadata.create_all(bind=engine)
-
 from dotenv import load_dotenv
 load_dotenv()
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
+from app.init_db import init_db
 
 from app.routers import (
     auth_router,
@@ -21,10 +18,12 @@ app = FastAPI(
     version="1.0.0"
 )
 
+
 origins = [
     "http://localhost:5173",
     "https://secopssiem.space"
 ]
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -33,6 +32,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.on_event("startup")
+def startup():
+    init_db()
+
 
 app.include_router(auth_router, prefix="/api")
 app.include_router(alerts_router, prefix="/api")
