@@ -94,3 +94,52 @@ def update_alert_endpoint(alert_id: UUID, payload: AlertUpdate, db: Session = De
 def delete_alert_endpoint(alert_id: UUID, db: Session = Depends(get_db)):
     delete_alert(db, alert_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+# ---------------- WEBSOCKET ALERT STREAM ----------------
+
+
+from fastapi import WebSocket, WebSocketDisconnect
+import json
+
+active_connections: list[WebSocket] = []
+
+
+@router.websocket("/ws/alerts")
+async def websocket_alerts(websocket: WebSocket):
+    await websocket.accept()
+    active_connections.append(websocket)
+
+    try:
+        while True:
+            data = await websocket.receive_text()
+            message = json.loads(data)
+
+            # frontend отправляет auth после подключения
+            if message.get("type") == "auth":
+                token = message.get("token")
+
+                # здесь можно добавить проверку JWT если нужно
+                if token:
+                    await websocket.send_json({
+                        "type": "auth",
+                        "status": "ok"
+                    })
+                else:
+                    await websocket.close()
+
+    except WebSocketDisconnect:
+        active_connections.remove(websocket)
+
+
+async def broadcast_alert(alert: dict):
+    disconnected = []
+
+    for connection in active_connections:
+        try:
+            await connection.send_json(alert)
+        except:
+            disconnected.append(connection)
+
+    for connection in disconnected:
+        active_connections.remove(connection)
