@@ -1,9 +1,11 @@
 from dotenv import load_dotenv
 load_dotenv()
 
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
+
+import json
 
 from app.init_db import init_db
 
@@ -53,7 +55,39 @@ def health():
     return {"status": "ok"}
 
 
-# 🔐 ADD THIS BLOCK
+# ---------------- WEBSOCKET ----------------
+
+active_connections: list[WebSocket] = []
+
+
+@app.websocket("/ws/alerts")
+async def websocket_alerts(websocket: WebSocket):
+    await websocket.accept()
+    active_connections.append(websocket)
+
+    try:
+        while True:
+            data = await websocket.receive_text()
+            message = json.loads(data)
+
+            # frontend отправляет auth сразу после подключения
+            if message.get("type") == "auth":
+                token = message.get("token")
+
+                if token:
+                    await websocket.send_json({
+                        "type": "auth",
+                        "status": "ok"
+                    })
+                else:
+                    await websocket.close()
+
+    except WebSocketDisconnect:
+        active_connections.remove(websocket)
+
+
+# ---------------- OPENAPI SECURITY ----------------
+
 def custom_openapi():
     if app.openapi_schema:
         return app.openapi_schema
